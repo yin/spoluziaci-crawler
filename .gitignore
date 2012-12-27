@@ -16,3 +16,11 @@ tmp
 .yardoc
 _yardoc
 doc/
+
+#Others
+cookies.jar
+.key
+mechanize.log
+downloads/
+Gemfile.lock
+
