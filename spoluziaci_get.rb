@@ -155,12 +155,15 @@ class SpoluziaciCrawler
     i = 0
     files.each do |file|
       i += 1
-      filename = "#{@download_dir}#{file[:folder][:name]}-#{file[:name]}"
+      path = "#{@download_dir}/#{file[:folder][:name]}"
+      filename = "#{path}/#{file[:name]}"
       log "Processing file #{filename}"
 
       if !File.exists?(filename)
         log "Downloading to #{filename}"
         log "\t... from #{file[:href]}"
+        FileUtils.mkdir_p(path)
+        
         contents = @agent.get_file(file[:href])
         write(filename, contents)
       else
