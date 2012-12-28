@@ -10,6 +10,9 @@ $downloadlDir = 'downloads/'
 $baseUrl = 'http://www.spoluziaci.sk/'
 $mechanizeLog = 'mechanize.log'
 $passwd = '.key'
+$class_year = '2014'
+$class_field = 'AI'
+$account_page_class_list_regexp = /moj[ae] tried[ay]/
 
 module MyLogger
   def log(msg)
@@ -97,7 +100,7 @@ class SpoluziaciCrawler
 
   def goClassList(page_acc)
     log "Requesting List of classes"
-    link = page_acc.link_with(:text => 'moja trieda')
+    link = page_acc.link_with(:text => $account_page_class_list_regexp)
     if link != nil
       classlist_page = link.click
     else
@@ -109,7 +112,7 @@ class SpoluziaciCrawler
   end
 
   def goClass(classlist_page)
-    goClassRegExp(classlist_page, /2014.*AI/)
+    goClassRegExp(classlist_page, /#{$class_year}.*#{$class_field}/)
   end
 
   def goClassRegExp(classlist_page, regexp)
