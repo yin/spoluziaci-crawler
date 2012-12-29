@@ -5,55 +5,19 @@ require 'nokogiri'
 require 'logger'
 require 'readline'
 require 'aes_crypter'
+require 'link_extractor'
+require 'my_logger'
 
 $downloadlDir = 'downloads/'
 $baseUrl = 'http://www.spoluziaci.sk/'
 $mechanizeLog = 'mechanize.log'
+$cookies_file = "cookies.jar"
 $passwd = '.key'
 $class_year = '2014'
 $class_field = 'AI'
-$account_page_class_list_regexp = /moj[ae] tried[ay]/
-
-module MyLogger
-  def log(msg)
-    puts msg
-  end
-end
-
-class DocumentLinkExtractor
-  include MyLogger
-  def initialize
-  end
-
-  def extract_files(html)
-    doc = Nokogiri::HTML(html, nil, 'UTF-8')
-    doc.encoding = 'utf-8'
-    doc.xpath('//div[@class="dokument"]//table//tr').
-    map { |cell| cell.at('td') }.
-    select { |td| td != nil && td.at('a') != nil }.
-    collect do |td|
-      a = td.at('a')
-      if a != nil
-        name = a.text.strip
-        href = a.attr('href')
-        { :name => name,
-          :href => href
-        }
-      end
-    end
-  end
-
-  def extract_folders(html)
-    Nokogiri::HTML(html).xpath('//table[@class="slozky"]//td/div/a').
-    collect do |cell|
-      name = cell.text.strip
-      href = cell.attr('href')
-      { :name => name,
-        :href => href
-      }
-    end
-  end
-end
+$class_list_regexp = /moj[ae] tried[ay]/
+$login_form_regexp = /login/
+$logout_link_regexp = /Odhl..?si..? sa/
 
 class SpoluziaciCrawler
   include MyLogger
@@ -70,7 +34,9 @@ class SpoluziaciCrawler
 
   def crawl
     account = doLogin
-    doSaveCookies "cookies.jar"
+    if $cookies_file != nil
+      doSaveCookies $cookies_file
+    end
 
     classlist = goClassList(account)
     myclass = goClass(classlist)
@@ -81,16 +47,23 @@ class SpoluziaciCrawler
     files = processFoldersIntoFiles(folders)
 
     processFiles(files)
+    
+    doLogout
   end
 
   def doLogin
     homepage = goHomepage
     log "Submitting Login info"
-    page_acc = homepage.form_with(:action => /login/) do |login_form|
+    account_page = homepage.form_with(:action => $login_form_regexp) do |login_form|
       login_form.email = getDecrypt[:login]
       login_form.password = getDecrypt[:pass]
     end.
     submit
+  end
+  
+  def doLogout
+    log "Logging out"
+    goLinkRegex @agent.current_page, $logout_link_regexp
   end
 
   def goHomepage
@@ -98,35 +71,33 @@ class SpoluziaciCrawler
     @agent.get($baseUrl)
   end
 
-  def goClassList(page_acc)
+  def goClassList(account_page)
     log "Requesting List of classes"
-    link = page_acc.link_with(:text => $account_page_class_list_regexp)
-    if link != nil
-      classlist_page = link.click
-    else
-      log "Can't find link to class list, probably not logged in."
-      log "Try deleting #{$passwd} file."
-      log "Exiting!"
-      exit 1
-    end
+    goLinkRegex(account_page, $class_list_regexp)
   end
 
   def goClass(classlist_page)
-    goClassRegExp(classlist_page, /#{$class_year}.*#{$class_field}/)
+    goLinkRegex(classlist_page, /#{$class_year}.*#{$class_field}/)
   end
 
-  def goClassRegExp(classlist_page, regexp)
-    log "Requesting class matching regexp #{regexp}"
-    class_page = classlist_page.link_with(:text => regexp).click
+  def goLinkRegex(page, regexp)
+    log "Clicking on link matching regexp #{regexp}"
+    link = page.link_with(:text => regexp)
+    if link != nil
+      link.click
+      else
+        log "\tCan't find link, probably not logged in."
+        log "\tTry deleting #{$passwd} file."
+      end
   end
 
   def goDocRoot(class_page)
     log "Requesting List of folders"
-    docroot_page = class_page.link_with(:text => /^Dokumenty/).click
+    class_page.link_with(:text => /^Dokumenty/).click
   end
 
   def lookupFolders(html)
-    folders = @extractor.extract_folders(html)
+    @extractor.extract_folders(html)
   end
 
   def processFoldersIntoFiles(folders)
@@ -144,11 +115,11 @@ class SpoluziaciCrawler
 
   def goFiles(folder)
     log "Requesting Files in folder #{folder[:name]}"
-    folder_page = @agent.get(folder[:href])
+    @agent.get(folder[:href])
   end
 
   def lookupFiles(html)
-    files = @extractor.extract_files(html)
+    @extractor.extract_files(html)
   end
 
   def processFiles(files)
@@ -190,6 +161,7 @@ class SpoluziaciCrawler
       else
         d = decrypt_from($passwd).split("\n")
         if d.length == 2
+          log "Login info loaded from #{$passwd}"
           @decrypt = { :login => d[0], :pass => d[1] }
         else
           @decrypt = askForLogin
