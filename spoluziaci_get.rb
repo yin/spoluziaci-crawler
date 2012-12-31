@@ -47,7 +47,7 @@ class SpoluziaciCrawler
     files = processFoldersIntoFiles(folders)
 
     processFiles(files)
-    
+
     doLogout
   end
 
@@ -55,12 +55,12 @@ class SpoluziaciCrawler
     homepage = goHomepage
     log "Submitting Login info"
     account_page = homepage.form_with(:action => $login_form_regexp) do |login_form|
-      login_form.email = getDecrypt[:login]
-      login_form.password = getDecrypt[:pass]
+      login_form.email = decrypted[:login]
+      login_form.password = decrypted[:pass]
     end.
     submit
   end
-  
+
   def doLogout
     log "Logging out"
     goLinkRegex @agent.current_page, $logout_link_regexp
@@ -85,10 +85,10 @@ class SpoluziaciCrawler
     link = page.link_with(:text => regexp)
     if link != nil
       link.click
-      else
-        log "\tCan't find link, probably not logged in."
-        log "\tTry deleting #{$passwd} file."
-      end
+    else
+      log "\tCan't find link, probably not logged in."
+      log "\tTry deleting #{$passwd} file."
+    end
   end
 
   def goDocRoot(class_page)
@@ -134,7 +134,7 @@ class SpoluziaciCrawler
         log "Downloading to #{filename}"
         log "\t... from #{file[:href]}"
         FileUtils.mkdir_p(path)
-        
+
         contents = @agent.get_file(file[:href])
         write(filename, contents)
       else
@@ -153,27 +153,11 @@ class SpoluziaciCrawler
     "WLDNSDvjRBresv4;c6\45869W$#w5tv3[="
   end
 
-  def getDecrypt
-    if @decrypt == nil
-      if !File.exists?($passwd)
-        @decrypt = askForLogin
-        encrypt_to("#{@decrypt[:login]}\n#{@decrypt[:pass]}", $passwd)
-      else
-        d = decrypt_from($passwd).split("\n")
-        if d.length == 2
-          log "Login info loaded from #{$passwd}"
-          @decrypt = { :login => d[0], :pass => d[1] }
-        else
-          @decrypt = askForLogin
-          encrypt_to("#{@decrypt[:login]}\n#{@decrypt[:pass]}", $passwd)
-        end
-      end
-    end
-    puts "Using login info: #{@decrypt.to_s}"
-    @decrypt
+  def crypt_file
+    $passwd
   end
 
-  def askForLogin
+  def could_not_decrypt
     puts "Login into for #{$baseUrl}"
     l = Readline.readline("Login: ", true)
     p = Readline.readline("Password: ", false)

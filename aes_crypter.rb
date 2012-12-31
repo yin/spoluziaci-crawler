@@ -1,8 +1,29 @@
 require 'openssl'
 require 'digest/sha1'
 
-# Contract: define crypt_key
+# Contract: define crypt_key, crypt_file, could_not_decrypt, log
+
 module AESCrypter
+  def decrypted
+    if @decrypt == nil
+      if File.exists?(crypt_file)
+        d = decrypt_from(crypt_file).split("\n")
+        
+        if d.length == 2
+          log "Login info loaded from #{crypt_file}"
+          @decrypt = { :login => d[0], :pass => d[1] }
+        end
+      end
+
+      if @decrypt == nil
+        @decrypt = could_not_decrypt
+        encrypt_to("#{@decrypt[:login]}\n#{@decrypt[:pass]}", crypt_file)
+      end
+    end
+    puts "Using login info: #{@decrypt.to_s}"
+    @decrypt
+  end
+
   def encrypt_to(str, filename)
     c = OpenSSL::Cipher::Cipher.new("aes-256-cbc")
     c.encrypt
