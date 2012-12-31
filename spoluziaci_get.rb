@@ -62,8 +62,9 @@ class SpoluziaciCrawler
   end
 
   def doLogout
+    homepage = goHomepage
     log "Logging out"
-    goLinkRegex @agent.current_page, $logout_link_regexp
+    goLinkRegex homepage, $logout_link_regexp
   end
 
   def goHomepage
