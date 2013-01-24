@@ -1,4 +1,4 @@
-require 'my_logger'
+require 'lib/my_logger'
 
 class DocumentLinkExtractor
   include MyLogger

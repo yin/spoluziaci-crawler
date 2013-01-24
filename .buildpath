@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <buildpath>
 	<buildpathentry kind="src" path=""/>
-	<buildpathentry kind="con" path="org.eclipse.dltk.launching.INTERPRETER_CONTAINER"/>
-	<buildpathentry external="true" kind="lib" path="/var/lib/gems/1.8"/>
+	<buildpathentry kind="con" path="org.eclipse.dltk.launching.INTERPRETER_CONTAINER/org.eclipse.dltk.ruby.internal.launching.JRubyInstallType/jruby.bat"/>
+	<buildpathentry kind="con" path="org.eclipse.dltk.USER_LIBRARY/Gems"/>
 </buildpath>

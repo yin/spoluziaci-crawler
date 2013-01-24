@@ -1,23 +1,16 @@
+$LOAD_PATH.unshift "."
+
+require 'config'
 require 'rubygems'
-require 'pp'
+
+#require 'pp'
 require 'mechanize'
 require 'nokogiri'
 require 'logger'
 require 'readline'
-require 'aes_crypter'
-require 'link_extractor'
-require 'my_logger'
-
-$downloadlDir = 'downloads/'
-$baseUrl = 'http://www.spoluziaci.sk/'
-$mechanizeLog = 'mechanize.log'
-$cookies_file = "cookies.jar"
-$passwd = '.key'
-$class_year = '2014'
-$class_field = 'AI'
-$class_list_regexp = /moj[ae] tried[ay]/
-$login_form_regexp = /login/
-$logout_link_regexp = /Odhl..?si..? sa/
+require 'lib/aes_crypter'
+require 'lib/link_extractor'
+require 'lib/my_logger'
 
 class SpoluziaciCrawler
   include MyLogger
@@ -28,12 +21,27 @@ class SpoluziaciCrawler
     @agent.follow_meta_refresh = true
     @agent.redirect_ok = true
     @agent.log = Logger.new $mechanizeLog
+
+    if $proxy_use
+      params = ['proxy.rwe.com', '8080']
+      params << $proxy_user << $proxy_pass if $proxy_user && $proxy_pass
+      log "Setting proxy to: #{params}"
+      @agent.set_proxy *params
+    else
+      log "Not using any proxy..."
+    end
+
     @extractor = DocumentLinkExtractor.new
     @download_dir = download_dir
   end
 
   def crawl
-    account = doLogin
+    begin
+      account = doLogin
+    rescue Net::HTTPProxyAuthenticationRequired
+      log "Proxy authentication needed..."
+    end
+
     if $cookies_file != nil
       doSaveCookies $cookies_file
     end
@@ -68,7 +76,7 @@ class SpoluziaciCrawler
   end
 
   def goHomepage
-    log "Requesting Homepage"
+    log "Requesting Homepage: #{$baseUrl}"
     @agent.get($baseUrl)
   end
 
@@ -124,11 +132,25 @@ class SpoluziaciCrawler
   end
 
   def processFiles(files)
-    i = 0
-    files.each do |file|
-      i += 1
-      path = "#{@download_dir}/#{file[:folder][:name]}"
-      filename = "#{path}/#{file[:name]}"
+    with_redirects false do
+      files_skip, files_download = files.partition do |file|
+        filename, path = filename_and_path(file)
+        File.exists?(filename)
+      end
+
+      files_skip.each do |file|
+        log "Skipping: #{file[:folder][:name]}/#{file[:name]}"
+      end
+
+      files_download.each do |file|
+        download_file file
+      end
+    end
+  end
+
+  def download_file(file)
+    begin
+      filename, path = filename_and_path(file)
       log "Processing file #{filename}"
 
       if !File.exists?(filename)
@@ -138,11 +160,26 @@ class SpoluziaciCrawler
 
         contents = @agent.get_file(file[:href])
         write(filename, contents)
-      else
-        log "Skipping #{filename}"
-        log "\t... file exists"
       end
+    rescue BasicObject => e
+      log "Error while downloading #{file[:name]}: #{e}"
     end
+  end
+
+  def with_redirects(redirect_ok, &block)
+    old_redirect_ok = @agent.redirect_ok
+    old_meta_refresh = @agent.follow_meta_refresh
+    @agent.redirect_ok = redirect_ok
+    @agent.follow_meta_refresh = redirect_ok
+    yield
+    @agent.redirect_ok = old_redirect_ok
+    @agent.follow_meta_refresh = old_meta_refresh
+  end
+
+  def filename_and_path(file)
+    path = "#{@download_dir}/#{file[:folder][:name]}"
+    filename = "#{path}/#{file[:name]}"
+    return filename, path
   end
 
   def doSaveCookies(filename)
